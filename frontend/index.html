@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gestión de Usuarios y Tareas</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f8f9fa;
+        }
+        h1, h2 { color: #333; }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .section {
+            background: white;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        form {
+            display: grid;
+            gap: 12px;
+            max-width: 600px;
+        }
+        input, button {
+            padding: 10px;
+            font-size: 16px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:hover { background: #0056b3; }
+        button.delete { background: #dc3545; }
+        button.delete:hover { background: #c82333; }
+        button.edit { background: #ffc107; color: black; }
+        button.edit:hover { background: #e0a800; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 15px;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background: #f1f1f1;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 500px;
+        }
+
+        
+        .actions button {
+            margin-right: 5px;
+            padding: 6px 12px;
+            font-size: 14px;
+        }
+        .error {
+            color: red;
+            margin: 10px 0;
+        }
+        .success {
+            color: green;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Gestión de Usuarios y Tareas</h1>
+
+        <!-- Sección Usuarios -->
+        <div class="section">
+            <h2>Usuarios</h2>
+            
+            <!-- Formulario Crear Usuario -->
+            <form id="userForm">
+                <input type="text" id="name" placeholder="Nombre" required>
+                <input type="text" id="lastname" placeholder="Apellido" required>
+                <input type="text" id="city" placeholder="Ciudad" required>
+                <input type="text" id="country" placeholder="País" required>
+                <input type="text" id="postal_code" placeholder="Código Postal" required>
+                <button type="submit">Crear Usuario</button>
+            </form>
+
+            <div id="userMessage" class="error"></div>
+
+            <!-- Tabla de Usuarios -->
+            <h3>Lista de Usuarios</h3>
+            <table id="usersTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Nombre</th>
+                        <th>Apellido</th>
+                        <th>Ciudad</th>
+                        <th>País</th>
+                        <th>Codigo Postal</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+
+        <!-- Modal para Editar Usuario -->
+        <div id="editModal" class="modal">
+            <div class="modal-content">
+                <h3>Editar Usuario</h3>
+                <form id="editUserForm">
+                    <input type="hidden" id="editUserId">
+                    <input type="text" id="editName" placeholder="Nombre" required>
+                    <input type="text" id="editLastname" placeholder="Apellido" required>
+                    <input type="text" id="editCity" placeholder="Ciudad" required>
+                    <input type="text" id="editCountry" placeholder="País" required>
+                    <input type="text" id="editPostalCode" placeholder="Código Postal" required>
+                    <div style="margin-top: 15px;">
+                        <button type="submit">Guardar Cambios</button>
+                        <button type="button" onclick="closeModal()">Cancelar</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+        <!-- Sección Tareas -->
+        <div class="section">
+            <h2>Tareas</h2>
+            
+            <!-- Formulario Crear Tarea -->
+            <form id="taskForm">
+                <input type="text" id="content" placeholder="Descripción de la tarea" required>
+                <button type="submit">Agregar Tarea</button>
+            </form>
+
+            <div id="taskMessage" class="error"></div>
+
+            <!-- Tabla de Tareas -->
+            <h3>Lista de Tareas</h3>
+            <table id="tasksTable">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Contenido</th>
+                        <th>Estado</th>
+                        <th>Acciones</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = "http://127.0.0.1:5000";   
+
+        // ==================== USUARIOS ====================
+
+        async function loadUsers() {
+            try {
+                const res = await fetch(`${API_URL}/users`);
+                const data = await res.json();
+                const tbody = document.querySelector("#usersTable tbody");
+                tbody.innerHTML = "";
+
+                data.users.forEach(user => {
+                    const row = document.createElement("tr");
+                    row.innerHTML = `
+                        <td>${user.id}</td>
+                        <td>${user.name}</td>
+                        <td>${user.lastname}</td>
+                        <td>${user.address.city}</td>
+                        <td>${user.address.country}</td>
+                        <td>${user.address.postal_code || ''}</td>
+                        <td class="actions">
+                            <button onclick="editUser(${user.id})" class="edit">Editar</button>
+                            <button onclick="deleteUser(${user.id})" class="delete">Eliminar</button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        document.getElementById("userForm").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const messageEl = document.getElementById("userMessage");
+
+            const userData = {
+                name: document.getElementById("name").value.trim(),
+                lastname: document.getElementById("lastname").value.trim(),
+                address: {
+                    city: document.getElementById("city").value.trim(),
+                    country: document.getElementById("country").value.trim(),
+                    postal_code: document.getElementById("postal_code").value.trim()
+                }
+            };
+
+            try {
+                const res = await fetch(`${API_URL}/users`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(userData)
+                });
+
+                const data = await res.json();
+
+                if (res.ok) {
+                    messageEl.className = "success";
+                    messageEl.textContent = data.message;
+                    document.getElementById("userForm").reset();
+                    loadUsers();
+                } else {
+                    messageEl.className = "error";
+                    messageEl.textContent = data.error || "Error al crear usuario";
+                }
+            } catch (err) {
+                messageEl.className = "error";
+                messageEl.textContent = "Error de conexión con el servidor";
+            }
+        });
+
+        // Editar usuario
+        let currentEditId = null;
+
+        async function editUser(id) {
+            try {
+                const res = await fetch(`${API_URL}/users/${id}`);
+                const data = await res.json();
+
+                if (data.user) {
+                    const u = data.user;
+                    document.getElementById("editUserId").value = u.id;
+                    document.getElementById("editName").value = u.name;
+                    document.getElementById("editLastname").value = u.lastname;
+                    document.getElementById("editCity").value = u.address.city;
+                    document.getElementById("editCountry").value = u.address.country;
+                    document.getElementById("editPostalCode").value = u.address.postal_code || "";
+
+                    document.getElementById("editModal").style.display = "flex";
+                } else {
+                    console.error("Usuario no encontrado");
+                    alert("Error: Usuario no encontrado");
+                }
+            } catch (err) {
+                console.error("Error al cargar usuario:", err);
+                alert("Error de conexión al cargar el usuario");
+            }
+        }
+
+        document.getElementById("editUserForm").addEventListener("submit", async (e) => {
+            e.preventDefault();
+
+            const id = document.getElementById("editUserId").value;
+            if(!id){
+                alert("ID de usuario no valido")
+                return;
+            }
+            const userData = {
+                name: document.getElementById("editName").value.trim(),
+                lastname: document.getElementById("editLastname").value.trim(),
+                address: {
+                    city: document.getElementById("editCity").value.trim(),
+                    country: document.getElementById("editCountry").value.trim(),
+                    postal_code: document.getElementById("editPostalCode").value.trim()
+                }
+            };
+
+            try {
+                console.log("Enviando actualización para usuario ID:", id);
+                console.log("Datos:", userData);
+
+                const res = await fetch(`${API_URL}/users/${id}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(userData)
+                });
+
+                const data = await res.json();
+                console.log("Respuesta:", data);
+
+                if (res.ok) {
+                    closeModal();
+                    loadUsers();
+                } else {
+                    alert(data.error || "Error al actualizar usuario");
+                }
+            } catch (err) {
+                console.error("Error detallado:", err);
+                alert("Error de conexión: " + err.message);
+            }
+        });
+
+        function closeModal() {
+            document.getElementById("editModal").style.display = "none";
+        }
+
+        async function deleteUser(id) {
+            if (!confirm("¿Eliminar este usuario?")) return;
+            try {
+                await fetch(`${API_URL}/users/${id}`, { method: "DELETE" });
+                loadUsers();
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        // ==================== TAREAS ====================
+
+        async function loadTasks() {
+            try {
+                const res = await fetch(`${API_URL}/tasks`);
+                const data = await res.json();
+                const tbody = document.querySelector("#tasksTable tbody");
+                tbody.innerHTML = "";
+
+                data.tasks.forEach(task => {
+                    const row = document.createElement("tr");
+                    row.innerHTML = `
+                        <td>${task.id}</td>
+                        <td class="${task.done ? 'done' : ''}">${task.content}</td>
+                        <td>${task.done ? "✅ Completada" : "⏳ Pendiente"}</td>
+                        <td class="actions">
+                            ${!task.done ? 
+                                `<button onclick="completeTask(${task.id})">Completar</button>` : ''}
+                            <button onclick="deleteTask(${task.id})" class="delete">Eliminar</button>
+                        </td>
+                    `;
+                    tbody.appendChild(row);
+                });
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        document.getElementById("taskForm").addEventListener("submit", async (e) => {
+            e.preventDefault();
+            const messageEl = document.getElementById("taskMessage");
+            const content = document.getElementById("content").value.trim();
+
+            try {
+                const res = await fetch(`${API_URL}/tasks`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ content })
+                });
+
+                const data = await res.json();
+
+                if (res.ok) {
+                    messageEl.className = "success";
+                    messageEl.textContent = data.message;
+                    document.getElementById("taskForm").reset();
+                    loadTasks();
+                } else {
+                    messageEl.className = "error";
+                    messageEl.textContent = data.error || "Error al agregar tarea";
+                }
+            } catch (err) {
+                messageEl.className = "error";
+                messageEl.textContent = "Error de conexión";
+            }
+        });
+
+        async function completeTask(id) {
+            try {
+                await fetch(`${API_URL}/tasks/${id}/complete`, { method: "PUT" });
+                loadTasks();
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        async function deleteTask(id) {
+            if (!confirm("¿Eliminar esta tarea?")) return;
+            try {
+                await fetch(`${API_URL}/tasks/${id}`, { method: "DELETE" });
+                loadTasks();
+            } catch (err) {
+                console.error(err);
+            }
+        }
+
+        // Cargar datos al iniciar
+        window.onload = () => {
+            loadUsers();
+            loadTasks();
+        };
+    </script>
+</body>
+</html>
